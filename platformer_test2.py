@@ -115,7 +115,7 @@ class Player(pygame.sprite.Sprite):
 
 
         #  PLATFORMS
-        # See if we hit anything
+        # See if we hit anything => NORMAL PLATFORM
         block_hit_list = pygame.sprite.spritecollide(
             self, self.level.platform_list, False)
         for block in block_hit_list:
@@ -127,10 +127,25 @@ class Player(pygame.sprite.Sprite):
                 # Otherwise if we are moving left, do the opposite.
                 self.rect.left = block.rect.right
 
+
+        # See if we hit anything => TRAPS
+        blockTrap_hit_list = pygame.sprite.spritecollide(
+            self, self.level.trap_list, False)
+        for block in blockTrap_hit_list:
+            # If we are moving right,
+            # set our right side to the left side of the item we hit
+            if self.change_x > 0:
+                self.rect.right = block.rect.left
+            elif self.change_x < 0:
+                # Otherwise if we are moving left, do the opposite.
+                self.rect.left = block.rect.right
+
+        
         # Move up/down
         self.rect.y += self.change_y
 
-        # Check and see if we hit anything
+
+        # Check and see if we hit anything => NORMAL PLATFORM
         block_hit_list = pygame.sprite.spritecollide(
             self, self.level.platform_list, False)
         for block in block_hit_list:
@@ -145,23 +160,7 @@ class Player(pygame.sprite.Sprite):
             self.change_y = 0
 
 
-        # Collision with TRAPS
-
-        # See if we hit anything
-        block_hit_list = pygame.sprite.spritecollide(
-            self, self.level.trap_list, False)
-        for block in block_hit_list:
-            # If we are moving right,
-            # set our right side to the left side of the item we hit
-            if self.change_x > 0:
-                self.rect.right = block.rect.left
-            elif self.change_x < 0:
-                # Otherwise if we are moving left, do the opposite.
-                self.rect.left = block.rect.right
-
-
-
-        # Check and see if we hit anything
+        # Check and see if we hit anything => TRAPS
         block_hit_list = pygame.sprite.spritecollide(
             self, self.level.trap_list, False)
         for block in block_hit_list:
@@ -181,7 +180,12 @@ class Player(pygame.sprite.Sprite):
         for enemy in hit_list:
             if hp > 0:
                 hp -= 1
-                print(hp)
+                #print(hp)
+
+        hit_list_trap = pygame.sprite.spritecollide(self,self.level.trap_list, False)
+        for trap in hit_list_trap:
+            if hp > 0:
+                hp -= 1
             
     def calc_grav(self):
         """ Calculate effect of gravity. """
@@ -346,8 +350,9 @@ class Level():
         """ Draw everything on this level. """
 
         # Draw the background
-        screen.fill(BLUE)
-        #screen.blit(self.background, (self.world_shift // 3, 0))
+        #screen.fill(BLUE)
+        
+        screen.blit(self.background, (0, 0))
 
         # Draw all the sprite lists that we have
         self.platform_list.draw(screen)
@@ -463,6 +468,7 @@ class Level_01(Level):
             # moving platforms needs to know the player's position at any time
             block.player = self.player
             self.trap_list.add(block)
+            
 
 # Create platforms for the level
 class Level_02(Level):
@@ -521,6 +527,7 @@ def draw_text(surface, color, text, size, x, y):
     text_rect.midtop = (x, y)
     surface.blit(text_surface, text_rect)
 
+trap_list = pygame.sprite.Group()
 
 def main():
     """ Main Program """
