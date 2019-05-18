@@ -3,6 +3,8 @@ import time
 import sys
 import os
 
+os.environ['SDL_VIDEO_CENTERED'] = '1'
+
 
 pygame.init()
 
@@ -31,8 +33,12 @@ SCREEN_HEIGHT = 600
 
 pygame.display.set_mode()
 # images used in the game
-img_player = pygame.image.load(os.path.join('images', 'hero.png')).convert()
-img_mob1 = pygame.image.load(os.path.join('images', 'mob1.png')).convert()
+img_playerRight = pygame.image.load(os.path.join('images', 'heroRight.png')).convert()
+img_playerLeft = pygame.image.load(os.path.join('images', 'heroLeft.png')).convert()
+
+
+img_mob1Right = pygame.image.load(os.path.join('images', 'mob1Right.png')).convert()
+img_mob1Left = pygame.image.load(os.path.join('images', 'mob1Left.png')).convert()
 
 block_air = pygame.image.load(os.path.join(
     'images', 'block-air.png')).convert()
@@ -50,7 +56,7 @@ end = pygame.image.load(os.path.join('images', 'end.png')).convert()
 
 
 score = 0
-
+hp = 1000
 
 class Player(pygame.sprite.Sprite):
     """
@@ -71,11 +77,16 @@ class Player(pygame.sprite.Sprite):
         #self.image = pygame.Surface([width, height])
         # self.image.fill(RED)
 
-        img_player.convert_alpha()
-        img_player.set_colorkey(ALPHA)
+        img_playerRight.convert_alpha()
+        img_playerRight.set_colorkey(ALPHA)
+        img_playerLeft.convert_alpha()
+        img_playerLeft.set_colorkey(ALPHA)
+        
 
         self.images = []
-        self.images.append(img_player)
+        self.images.append(img_playerRight)
+        self.images.append(img_playerLeft)
+
 
         self.image = self.images[0]
 
@@ -90,9 +101,11 @@ class Player(pygame.sprite.Sprite):
         self.level = None
 
         # health bar
-        self.health = 100
+        global hp
+        self.health = hp
 
     def update(self):
+        global hp
         """ Move the player. """
         # Gravity
         self.calc_grav()
@@ -100,6 +113,8 @@ class Player(pygame.sprite.Sprite):
         # Move left/right
         self.rect.x += self.change_x
 
+
+        #  PLATFORMS
         # See if we hit anything
         block_hit_list = pygame.sprite.spritecollide(
             self, self.level.platform_list, False)
@@ -129,6 +144,45 @@ class Player(pygame.sprite.Sprite):
             # Stop our vertical movement
             self.change_y = 0
 
+
+        # Collision with TRAPS
+
+        # See if we hit anything
+        block_hit_list = pygame.sprite.spritecollide(
+            self, self.level.trap_list, False)
+        for block in block_hit_list:
+            # If we are moving right,
+            # set our right side to the left side of the item we hit
+            if self.change_x > 0:
+                self.rect.right = block.rect.left
+            elif self.change_x < 0:
+                # Otherwise if we are moving left, do the opposite.
+                self.rect.left = block.rect.right
+
+
+
+        # Check and see if we hit anything
+        block_hit_list = pygame.sprite.spritecollide(
+            self, self.level.trap_list, False)
+        for block in block_hit_list:
+
+            # Reset our position based on the top/bottom of the object.
+            if self.change_y > 0:
+                self.rect.bottom = block.rect.top
+            elif self.change_y < 0:
+                self.rect.top = block.rect.bottom
+
+            # Stop our vertical movement
+            self.change_y = 0
+
+
+        # collision with enemies
+        hit_list = pygame.sprite.spritecollide(self, self.level.enemy_list, False)
+        for enemy in hit_list:
+            if hp > 0:
+                hp -= 1
+                print(hp)
+            
     def calc_grav(self):
         """ Calculate effect of gravity. """
         if self.change_y == 0:
@@ -160,11 +214,13 @@ class Player(pygame.sprite.Sprite):
     def go_left(self):
         """ Called when the user hits the left arrow. """
         self.change_x = -6
+        self.image = self.images[1]
 
     def go_right(self):
         """ Called when the user hits the right arrow. """
         self.change_x = 6
-
+        self.image = self.images[0]
+        
     def stop(self):
         """ Called when the user lets off the keyboard. """
         self.change_x = 0
@@ -174,11 +230,15 @@ class Enemy(pygame.sprite.Sprite):
     # Spawn an enemy
     def __init__(self, x, y, img):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.image.load(os.path.join(
-            'images', img)).convert()
+        self.images = []
+        self.images.append(img[0])
+        self.images.append(img[1])
 
-        self.image.convert_alpha()
-        self.image.set_colorkey(ALPHA)
+        self.image = self.images[0]
+
+        for i in range(len(self.images)):
+            self.images[i].convert_alpha()
+            self.images[i].set_colorkey(ALPHA)
 
         self.rect = self.image.get_rect()
         self.rect.x = x
@@ -193,8 +253,10 @@ class Enemy(pygame.sprite.Sprite):
 
         if self.counter >= 0 and self.counter <= distance:
             self.rect.x += speed
+            self.image = self.images[0]
         elif self.counter >= distance and self.counter <= distance*2:
             self.rect.x -= speed
+            self.image = self.images[1]
         else:
             self.counter = 0
 
@@ -224,12 +286,31 @@ class Platform(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
 
 
+class Trap(pygame.sprite.Sprite):
+    """ Platform deals damage to player """
+
+    def __init__(self, sprite):
+        super().__init__()
+
+        # self.image = pygame.Surface([width, height])
+        # self.image.fill(BROWN)
+
+        self.image = sprite
+
+        self.image.convert_alpha()
+        self.image.set_colorkey(ALPHA)
+
+        self.rect = self.image.get_rect()
+
+
+
 class Level():
     """ This is a generic super-class used to define a level.
         Create a child class for each level with level-specific
         info. """
 
     platform_list = None
+    trap_list = None
     enemy_list = None
     background = None
 
@@ -237,6 +318,8 @@ class Level():
         """ Constructor. Pass in a handle to player. Needed for when moving
             platforms collide with the player. """
         self.platform_list = pygame.sprite.Group()
+        self.trap_list = pygame.sprite.Group()
+
         self.enemy_list = pygame.sprite.Group()
         self.player = player
 
@@ -246,6 +329,8 @@ class Level():
         self.world_shift = 0
         self.level_limit = -1000
         self.platform_list = pygame.sprite.Group()
+        self.trap_list = pygame.sprite.Group()
+
         self.enemy_list = pygame.sprite.Group()
         self.player = player
 
@@ -253,17 +338,20 @@ class Level():
     def update(self):
         """ Update everything in this level."""
         self.platform_list.update()
+        self.trap_list.update()
+
         self.enemy_list.update()
 
     def draw(self, screen):
         """ Draw everything on this level. """
 
         # Draw the background
-        # screen.fill(BLUE)
-        screen.blit(self.background, (self.world_shift // 3, 0))
+        screen.fill(BLUE)
+        #screen.blit(self.background, (self.world_shift // 3, 0))
 
         # Draw all the sprite lists that we have
         self.platform_list.draw(screen)
+        self.trap_list.draw(screen)
         self.enemy_list.draw(screen)
         for e in self.enemy_list:
             e.move()
@@ -279,12 +367,15 @@ class Level():
         for platform in self.platform_list:
             platform.rect.x += shift_x
 
+        for trap in self.trap_list:
+            trap.rect.x += shift_x
+
         for enemy in self.enemy_list:
             enemy.rect.x += shift_x
 
     def enemyLvl(lvl, eloc):
         if lvl == 1:
-            enemy = Enemy(eloc[0], eloc[1], 'spr_scarab.png')
+            enemy = Enemy(eloc[0], eloc[1], [img_mob1Right,img_mob1Left])
             enemy_list = pygame.sprite.Group()
             enemy_list.add(enemy)
 
@@ -307,15 +398,17 @@ class Level_01(Level):
         self.background = pygame.image.load(
             os.path.join('images', 'stage2.jpg')).convert()
 
-        self.level_limit = -1500
+        self.level_limit = -2500
 
         # pop the ennemy/mobs
         eloc = []
-        eloc = [370, 400]
-        self.enemy_list.add(Level.enemyLvl(1, eloc))
+        eloc1 = [730, 300]
+        eloc2 = [830,500]
+        self.enemy_list.add(Level.enemyLvl(1, eloc1))
+        self.enemy_list.add(Level.enemyLvl(1, eloc2))
 
         # Array with width, height, x, and y of platform
-        level = [
+        levelPlatform = [
                 [block_air_left, 405, 500],
                 [block_air, 500, 500],
                 [block_air_right, 595, 500],
@@ -336,23 +429,25 @@ class Level_01(Level):
                 [block_air, 1920, 350],
                 [block_air_right, 2015, 350],
 
+                # [end, 2200, 530],
+                # [end, 2200, 402],
+                # [end, 2200, 274],
+                # [end, 2200, 146],
+                # [end, 2200, 18],
+                # [end, 2200, 0],
+        ]
+
+        levelTrap = [
                 [obstacle1, 1025, 530],
                 [obstacle1, 1100, 530],
                 [obstacle1, 1175, 530],
                 [obstacle1, 1250, 530],
                 [obstacle1, 1325, 530],
                 [obstacle1, 1400, 530],
-
-                [end, 2200, 530],
-                [end, 2200, 402],
-                [end, 2200, 274],
-                [end, 2200, 146],
-                [end, 2200, 18],
-                [end, 2200, 0],
         ]
 
         # Go through the array above and add platforms
-        for platform in level:
+        for platform in levelPlatform:
             block = Platform(platform[0])
             block.rect.x = platform[1]
             block.rect.y = platform[2]
@@ -360,6 +455,14 @@ class Level_01(Level):
             block.player = self.player
             self.platform_list.add(block)
 
+        # go through the array to add traps
+        for trap in levelTrap:
+            block = Trap(trap[0])
+            block.rect.x = trap[1]
+            block.rect.y = trap[2]
+            # moving platforms needs to know the player's position at any time
+            block.player = self.player
+            self.trap_list.add(block)
 
 # Create platforms for the level
 class Level_02(Level):
@@ -434,16 +537,16 @@ def main():
     pygame.display.set_caption("EgyptGame")
 
     # text
-    font = pygame.font.SysFont('Times New Roman, Arial', 70, True, False)
-    text = font.render('Score: ' + str(score), 1, BLACK)
-
-    
-
-
+    font = pygame.font.SysFont('Times New Roman, Arial', 16, True, False)
+    font2 = pygame.font.SysFont('Arial', 50 , True, False)
+    gameOver = font2.render('GAME OVER', 1, RED)
    
 
     # Create the player
     player = Player()
+
+    # Create the ennemy
+    ennemy_list = []
 
     # Create all the levels
     level_list = []
@@ -514,15 +617,28 @@ def main():
                 current_level = level_list[current_level_no]
                 player.level = current_level
 
+        
+
         # ALL CODE TO DRAW SHOULD GO BELOW THIS COMMENT
         screen.blit(backdrop, backdropbox)
 
-        screen.blit(text, (100, 100))
+        
 
         current_level.draw(screen)
         active_sprite_list.draw(screen)
+        
+        scoreText = font.render('Score: ' + str(score), 1, BLACK)
+        screen.blit(scoreText, (720, 10))
+        hpText = font.render('HP: ' + str(hp), 1, RED)
+        screen.blit(hpText, (10, 10))
+
+        if hp == 0:
+            screen.fill(BLACK)
+            screen.blit(gameOver, (300,250))
+           
 
         # ALL CODE TO DRAW SHOULD GO ABOVE THIS COMMENT
+        
 
         # Limit to 60 frames per second
         clock.tick(60)

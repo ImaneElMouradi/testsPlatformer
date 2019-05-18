@@ -33,7 +33,7 @@ class Player(pygame.sprite.Sprite):
         self.movey = 0
         self.frame = 0  # count frames
 
-        self.health = 10
+        self.health = 100
 
         img_player.convert_alpha()
         img_player.set_colorkey(ALPHA)
